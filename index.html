@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Arcade Ops — Prototype</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b0f14; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #ui { position:fixed; inset:0; pointer-events:none; color:#e6eef8; }
+    .panel { pointer-events:auto; background:rgba(10,14,20,.92); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:14px; }
+    #menu { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+    #menu .panel { width:min(520px, 92vw); }
+    #hud { position:fixed; left:14px; top:14px; display:flex; gap:10px; flex-direction:column; }
+    #hud .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .pill { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:999px; padding:6px 10px; font-size:12px; }
+    button { background:#1f6feb; color:white; border:0; border-radius:10px; padding:10px 12px; font-weight:700; cursor:pointer; }
+    button.secondary { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); }
+    select { width:100%; margin-top:8px; padding:10px; border-radius:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:#e6eef8; }
+    h1,h2 { margin:0 0 10px; }
+    small { color:rgba(230,238,248,.72); }
+    #crosshair { position:fixed; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; opacity:.85; }
+    #crosshair:before, #crosshair:after { content:""; position:absolute; background:#e6eef8; }
+    #crosshair:before { left:6px; top:0; width:2px; height:14px; }
+    #crosshair:after { left:0; top:6px; width:14px; height:2px; }
+    #centerToast { position:fixed; left:50%; top:60%; transform:translate(-50%,-50%); display:none; }
+    #centerToast .panel { text-align:center; }
+    #station, #powerWheel, #advPick { position:fixed; inset:0; display:none; align-items:center; justify-content:center; }
+    #station .panel, #powerWheel .panel, #advPick .panel { width:min(760px, 94vw); max-height:min(78vh, 720px); overflow:auto; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:10px; }
+    .card { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px; }
+    .card h3 { margin:0 0 6px; font-size:14px; }
+    .card p { margin:0 0 10px; font-size:12px; color:rgba(230,238,248,.8); }
+    .tag { display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); margin-right:6px; }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <div class="panel">
+      <h1>Arcade Ops</h1>
+      <small>Military shooter prototype • 25 levels • 50 advancements • bosses at 10 & 20</small>
+
+      <div style="height:12px"></div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Arcade Mode</h3>
+          <p>25 levels • Power wheel after 5 • Weapon upgrades • Bosses at 10 & 20</p>
+          <button id="startArcade">Start Arcade</button>
+        </div>
+
+        <div class="card">
+          <h3>Story Mode</h3>
+          <p>Pick difficulty here — it locks once you start. Story progression is separate.</p>
+          <label><small>Story difficulty (locks in):</small></label>
+          <select id="storyDiff">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+            <option value="nightmare">Nightmare</option>
+          </select>
+          <div style="height:10px"></div>
+          <button id="startStory">Start Story</button>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+      <button id="howTo" class="secondary">Show controls</button>
+      <div id="controlsText" style="display:none; margin-top:10px;">
+        <div class="panel" style="background:rgba(255,255,255,.04)">
+          <div class="pill">Move: WASD / Arrows</div>
+          <div class="pill">Look: Mouse</div>
+          <div class="pill">Jump: Space</div>
+          <div class="pill">Crouch: Shift</div>
+          <div class="pill">Sprint: Tab</div>
+          <div class="pill">Reload: R</div>
+          <div class="pill">Swap weapons: Y</div>
+          <div class="pill">Menu: ESC</div>
+          <div class="pill">Camera (1st/2nd/3rd): Option/Alt</div>
+          <div class="pill">Grenade (unlocks level 5): G</div>
+          <div style="margin-top:8px"><small>Click the screen to lock mouse. If pointer-lock fails, hold click + drag to look.</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ui">
+    <div id="hud">
+      <div class="row">
+        <div class="pill" id="modePill">Mode: —</div>
+        <div class="pill" id="lvlPill">Level: —</div>
+        <div class="pill" id="diffPill">Difficulty: —</div>
+      </div>
+      <div class="row">
+        <div class="pill" id="hpPill">HP: —</div>
+        <div class="pill" id="armorPill">Armor: —</div>
+        <div class="pill" id="ammoPill">Ammo: —</div>
+        <div class="pill" id="scrapPill">Scrap: —</div>
+      </div>
+      <div class="row">
+        <button id="openStation" class="secondary" style="pointer-events:auto;">Get / Upgrade Weapons</button>
+        <button id="openWheel" class="secondary" style="pointer-events:auto; display:none;">Power-Up Wheel</button>
+      </div>
+      <div class="row">
+        <div class="pill" id="powerSlots">Powers: [ ] [ ] [ ]</div>
+        <div class="pill" id="grenadePill">Grenade: Locked</div>
+        <div class="pill" id="cameraPill">Camera: 1st</div>
+      </div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="centerToast">
+      <div class="panel" id="toastText">—</div>
+    </div>
+
+    <div id="station">
+      <div class="panel">
+        <h2>Weapon Station</h2>
+        <small>Buy weapons + upgrades with Scrap. (Prototype: damage + reload tiers)</small>
+        <div style="height:12px"></div>
+        <div class="grid" id="stationGrid"></div>
+        <div style="height:12px"></div>
+        <button id="closeStation" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="powerWheel">
+      <div class="panel">
+        <h2>Power-Up Wheel</h2>
+        <small>After Level 5 you can choose what powers are available. You have 3 slots.</small>
+        <div style="height:12px"></div>
+        <div class="grid" id="wheelGrid"></div>
+        <div style="height:12px"></div>
+        <button id="closeWheel" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="advPick">
+      <div class="panel">
+        <h2>Pick an Advancement</h2>
+        <small>50 total. Pick one after each level clear.</small>
+        <div style="height:12px"></div>
+        <div class="grid" id="advGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+    // ---------- Data ----------
+    const WEAPONS = [
+      // Assault Rifles (250 max / 50 mag)
+      { id:"ar_m4", name:"M4A1 Ranger", slot:"primary", type:"AR", dmg:22, rps:10.0, mag:50, maxAmmo:250, reload:1.8 },
+      { id:"ar_ak", name:"AK-12 Reaper", slot:"primary", type:"AR", dmg:26, rps:8.5, mag:50, maxAmmo:250, reload:2.0 },
+      { id:"ar_scar", name:"SCAR-H Hammer", slot:"primary", type:"AR", dmg:32, rps:7.0, mag:50, maxAmmo:250, reload:2.2 },
+
+      // Shotguns (50 max / 10 chamber)
+      { id:"sg_m870", name:"M870 Trench", slot:"primary", type:"SHOTGUN", dmg:78, rps:1.4, mag:10, maxAmmo:50, reload:2.4 },
+      { id:"sg_spas", name:"SPAS-12 Viper", slot:"primary", type:"SHOTGUN", dmg:72, rps:1.8, mag:10, maxAmmo:50, reload:2.2 },
+      { id:"sg_aa12", name:"AA-12 Storm", slot:"primary", type:"SHOTGUN", dmg:58, rps:4.5, mag:10, maxAmmo:50, reload:2.8 },
+
+      // SMGs (400 max / 125 mag)
+      { id:"smg_mp5", name:"MP5 Classic", slot:"primary", type:"SMG", dmg:16, rps:14.0, mag:125, maxAmmo:400, reload:2.0 },
+      { id:"smg_vec", name:"Vector Shredder", slot:"primary", type:"SMG", dmg:14, rps:18.0, mag:125, maxAmmo:400, reload:2.1 },
+      { id:"smg_p90", name:"P90 Hive", slot:"primary", type:"SMG", dmg:15, rps:16.0, mag:125, maxAmmo:400, reload:1.9 },
+
+      // Snipers (60 max / 10 mag)
+      { id:"sn_m24", name:"M24 Longshot", slot:"primary", type:"SNIPER", dmg:95, rps:1.2, mag:10, maxAmmo:60, reload:2.6 },
+      { id:"sn_awp", name:"AWP Fang", slot:"primary", type:"SNIPER", dmg:115, rps:0.95, mag:10, maxAmmo:60, reload:2.9 },
+      { id:"sn_m82", name:"Barrett M82 Titan", slot:"primary", type:"SNIPER", dmg:160, rps:0.75, mag:10, maxAmmo:60, reload:3.4 },
+
+      // Secondary: Pistols
+      { id:"pi_m9", name:"M9 Sidearm", slot:"secondary", type:"PISTOL", dmg:24, rps:5.5, mag:15, maxAmmo:120, reload:1.5 },
+      { id:"pi_glock", name:"Glock Quickdraw", slot:"secondary", type:"PISTOL", dmg:20, rps:7.0, mag:17, maxAmmo:140, reload:1.4 },
+      { id:"pi_deagle", name:"Deagle Handcannon", slot:"secondary", type:"PISTOL", dmg:55, rps:2.5, mag:7, maxAmmo:70, reload:1.9 },
+
+      // Secondary: Mini SMGs
+      { id:"ms_uzi", name:"Micro Uzi", slot:"secondary", type:"MINI-SMG", dmg:12, rps:18.0, mag:30, maxAmmo:240, reload:1.8 },
+      { id:"ms_mp7", name:"MP7", slot:"secondary", type:"MINI-SMG", dmg:13, rps:16.0, mag:30, maxAmmo:240, reload:1.8 },
+      { id:"ms_scorp", name:"Skorpion", slot:"secondary", type:"MINI-SMG", dmg:11, rps:20.0, mag:30, maxAmmo:240, reload:1.9 },
+    ];
+
+    const ENEMIES = [
+      // Zombies
+      { id:"z_walk", name:"Walker", kind:"zombie", hp:90, dmg:10, spd:1.4 },
+      { id:"z_run",  name:"Runner", kind:"zombie", hp:70, dmg:14, spd:2.4 },
+      { id:"z_brut", name:"Bruiser", kind:"zombie", hp:240, dmg:22, spd:1.2 },
+      { id:"z_spit", name:"Spitter", kind:"zombie", hp:110, dmg:16, spd:1.3, ranged:true },
+      { id:"z_shron", name:"Shron Zombie", kind:"zombie", hp:100, dmg:100, spd:1.8, shron:true },
+
+      // Robots
+      { id:"r_drone", name:"Drone", kind:"robot", hp:80, dmg:12, spd:2.2 },
+      { id:"r_sentry", name:"Sentry Bot", kind:"robot", hp:160, dmg:18, spd:1.6, ranged:true },
+      { id:"r_shield", name:"Shield Bot", kind:"robot", hp:220, dmg:14, spd:1.4, armored:true },
+      { id:"r_tank", name:"Tank Bot", kind:"robot", hp:360, dmg:28, spd:1.1, armored:true },
+
+      // Monsters
+      { id:"m_stalk", name:"Stalker", kind:"monster", hp:140, dmg:20, spd:2.1 },
+      { id:"m_wraith", name:"Wraith", kind:"monster", hp:110, dmg:24, spd:2.3, blink:true },
+      { id:"m_goli", name:"Goliath", kind:"monster", hp:420, dmg:32, spd:1.2, armored:true },
+      { id:"m_howl", name:"Howler", kind:"monster", hp:180, dmg:18, spd:1.7, aura:true },
+    ];
+
+    const BOSSES = {
+      10: { name:"IRON WARDEN", hp:2200, dmg:35 },
+      20: { name:"NECRO-CONSTRUCTOR", hp:3600, dmg:42, phase2At:0.40 }
+    };
+
+    const POWERUPS = [
+      { id:"med", name:"Med Surge", desc:"+40 HP instantly" },
+      { id:"overclock", name:"Overclock", desc:"+20% fire rate for 12s" },
+      { id:"shock", name:"Shock Nova", desc:"Stun nearby enemies (2s)" },
+      { id:"armor", name:"Armor Plate", desc:"+25 armor" },
+      { id:"magnet", name:"Scrap Magnet", desc:"Pull scrap drops closer" },
+      { id:"boss10", name:"Boss Power: Infinite Ammo", desc:"Infinite ammo 10s, then +250 ammo to equipped gun" },
+      { id:"boss20", name:"Boss Power: Invincible", desc:"Invincible for 5s" },
+    ];
+
+    const ADVANCEMENTS = [
+      "Vitality I (+10 HP)", "Vitality II (+10 HP)", "Vitality III (+10 HP)", "Armor I (+10 armor)", "Armor II (+10 armor)",
+      "Quick Heal (-5% heal cooldown)", "Pain Tolerance (-5% damage taken)", "Sprint I (+5% speed)", "Sprint II (+5% speed)", "Jump Boost (+10% jump)",
+      "Reload I (-6% reload)", "Reload II (-6% reload)", "Recoil I (-8% recoil)", "Recoil II (-8% recoil)", "Crit I (+2% crit)",
+      "Crit II (+2% crit)", "Crit III (+3% crit)", "Headshot I (+8% head dmg)", "Headshot II (+8% head dmg)", "Stability (+5% accuracy)",
+      "Scrap I (+8% scrap)", "Scrap II (+8% scrap)", "Scrap III (+10% scrap)", "Upgrade Discount I (-5%)", "Upgrade Discount II (-5%)",
+      "Ammo Scavenger I (+8% ammo drops)", "Ammo Scavenger II (+8%)", "Boss Bounty (+15% boss scrap)", "Station Faster (-10% station cooldown)", "Power Slots Polish (+1 reroll)",
+      "Adrenaline (+5% damage under 40% HP)", "Guardian (+5 armor regen)", "Shockproof (-10% robot dmg)", "Rotproof (-10% zombie dmg)", "Hexproof (-10% monster dmg)",
+      "Grenadier (+1 grenade carry)", "Grenade Expert (+10% grenade dmg)", "Runner Killer (+8% vs runners)", "Armor Breaker (+8% vs armored)", "Giant Slayer (+8% vs goliaths)",
+      "Power Duration I (+8%)", "Power Duration II (+8%)", "Power Cooldown I (-6%)", "Power Cooldown II (-6%)", "Pickup Radius (+15%)",
+      "Shield Burst (gain 10 armor on kill streak)", "Last Stand (brief DR at 10% HP)", "Ammo Burst (small ammo on multi-kill)", "Stun Chance (+2% on hit)", "Elite Hunter (+10% vs bosses/elites)",
+    ];
+
+    // ---------- State ----------
+    const state = {
+      mode: "none",
+      storyDifficulty: "normal",
+      level: 1,
+      maxLevels: 25,
+      killsThisLevel: 0,
+      killsNeeded: 12,
+
+      scrap: 0,
+      hp: 120,
+      hpMax: 120,
+      armor: 0,
+      armorMax: 75,
+
+      grenadeUnlocked: false,
+      grenades: 0,
+      grenadeDamage: 125,
+
+      powerWheelUnlocked: false,
+      powerSlots: [null, null, null],
+      wheelPool: ["med","overclock","shock","armor","magnet"],
+
+      owned: new Set(["ar_m4", "pi_m9"]),
+      upgrades: {},
+      primaryId: "ar_m4",
+      secondaryId: "pi_m9",
+      equipped: "primary",
+
+      lastShot: 0,
+      reloading: false,
+      reloadEnd: 0,
+
+      advOwned: new Set(),
+      paused: false,
+
+      cameraMode: 0, // 0=1st 1=2nd 2=3rd
+      invincibleUntil: 0,
+      infiniteAmmoUntil: 0,
+    };
+
+    for (const w of WEAPONS) state.upgrades[w.id] = { dmgTier:0, reloadTier:0 };
+
+    function diffMult(){
+      if (state.mode !== "story") return { hp:1, dmg:1 };
+      const d = state.storyDifficulty;
+      if (d==="easy") return { hp:0.85, dmg:0.85 };
+      if (d==="hard") return { hp:1.25, dmg:1.25 };
+      if (d==="nightmare") return { hp:1.55, dmg:1.55 };
+      return { hp:1, dmg:1 };
+    }
+
+    // ---------- THREE ----------
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0b0f14, 12, 70);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(78, innerWidth/innerHeight, 0.1, 200);
+    camera.position.set(0, 1.7, 6);
+
+    scene.add(new THREE.HemisphereLight(0xaac7ff, 0x141821, 1.0));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(10, 20, 10);
+    scene.add(dir);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({ color:0x111826, roughness:1, metalness:0 })
+    );
+    ground.rotation.x = -Math.PI/2;
+    ground.position.y = 0;
+    scene.add(ground);
+
+    const wallMat = new THREE.MeshStandardMaterial({ color:0x202a3a, roughness:.9 });
+    for (let i=0;i<26;i++){
+      const b = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), wallMat);
+      b.position.set((Math.random()-0.5)*40, 1, (Math.random()-0.5)*40);
+      scene.add(b);
+    }
+
+    // ---------- Player ----------
+    const player = {
+      pos: new THREE.Vector3(0, 1.7, 0),
+      vel: new THREE.Vector3(),
+      yaw: 0,
+      pitch: 0,
+      onGround: false,
+      speedBase: 5.2
+    };
+
+    const playerMesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.35, 1.0, 6, 12),
+      new THREE.MeshStandardMaterial({ color:0x2e7d32, roughness:.8 })
+    );
+    playerMesh.position.copy(player.pos);
+    scene.add(playerMesh);
+
+    // ---------- Helpers ----------
+    function getWeapon(id){ return WEAPONS.find(w=>w.id===id); }
+    function equippedWeapon(){
+      const id = state.equipped==="primary" ? state.primaryId : state.secondaryId;
+      return getWeapon(id);
+    }
+
+    function toast(msg){
+      const t = document.getElementById("centerToast");
+      const box = document.getElementById("toastText");
+      box.textContent = msg;
+      t.style.display = "block";
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(()=> t.style.display="none", 1600);
+    }
+
+    // ---------- Ammo ----------
+    const ammo = {};
+    function ensureAmmoFor(id){
+      const w = getWeapon(id);
+      if (!ammo[id]) ammo[id] = { inMag: w.mag, reserve: Math.max(0, w.maxAmmo - w.mag) };
+    }
+    for (const w of WEAPONS) ensureAmmoFor(w.id);
+
+    function dmgWithUpgrades(w){
+      const up = state.upgrades[w.id] || { dmgTier:0, reloadTier:0 };
+      const steps = [0.10,0.10,0.12,0.12,0.15];
+      let mult = 1;
+      for (let i=0;i<up.dmgTier;i++) mult *= (1 + steps[i]);
+      return w.dmg * mult;
+    }
+    function reloadWithUpgrades(w){
+      const up = state.upgrades[w.id] || { dmgTier:0, reloadTier:0 };
+      const steps = [0.06,0.06,0.08,0.08,0.10];
+      let mult = 1;
+      for (let i=0;i<up.reloadTier;i++) mult *= (1 - steps[i]);
+      return w.reload * mult;
+    }
+
+    // ---------- Enemies ----------
+    const enemies = [];
+    function enemyColor(kind){
+      if (kind==="zombie") return 0x4caf50;
+      if (kind==="robot") return 0x90caf9;
+      return 0xce93d8;
+    }
+    function spawnEnemy(def, isBoss=false, bossName=""){
+      const mult = diffMult();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(isBoss ? 2.6 : 1.0, isBoss ? 3.0 : 1.6, isBoss ? 2.6 : 1.0),
+        new THREE.MeshStandardMaterial({ color: isBoss ? 0xff7043 : enemyColor(def.kind), roughness:.7 })
+      );
+      const angle = Math.random()*Math.PI*2;
+      const r = 18 + Math.random()*18;
+      mesh.position.set(Math.cos(angle)*r, isBoss ? 1.6 : 0.8, Math.sin(angle)*r);
+      scene.add(mesh);
+
+      enemies.push({
+        def, isBoss, bossName,
+        mesh,
+        hp: Math.round(def.hp * mult.hp),
+        hpMax: Math.round(def.hp * mult.hp),
+        dmg: Math.round(def.dmg * mult.dmg),
+        spd: def.spd || 1.6,
+        lastHit: 0,
+        phase2: false
+      });
+    }
+    function clearEnemies(){
+      while(enemies.length){
+        const e = enemies.pop();
+        scene.remove(e.mesh);
+      }
+    }
+
+    function spawnLevel(level){
+      clearEnemies();
+      state.killsThisLevel = 0;
+
+      if (level >= 5 && !state.grenadeUnlocked){
+        state.grenadeUnlocked = true;
+        state.grenades = 2;
+        toast("Grenade unlocked! Press G (Shron Zombie HP=100, grenade dmg=125)");
+      }
+      if (level > 5 && !state.powerWheelUnlocked){
+        state.powerWheelUnlocked = true;
+        document.getElementById("openWheel").style.display = "inline-block";
+        toast("Power-Up Wheel unlocked!");
+      }
+
+      state.killsNeeded = Math.min(12 + Math.floor(level*1.3), 42);
+
+      if (level === 10){
+        spawnEnemy({ kind:"boss", hp:BOSSES[10].hp, dmg:BOSSES[10].dmg, spd:1.25 }, true, BOSSES[10].name);
+        for (let i=0;i<10;i++) spawnEnemy(ENEMIES[0]);
+        return;
+      }
+      if (level === 20){
+        spawnEnemy({ kind:"boss", hp:BOSSES[20].hp, dmg:BOSSES[20].dmg, spd:1.35 }, true, BOSSES[20].name);
+        for (let i=0;i<14;i++) spawnEnemy(ENEMIES[Math.floor(Math.random()*ENEMIES.length)]);
+        return;
+      }
+
+      const pool = [];
+      if (level <= 4){
+        pool.push("z_walk","z_run","z_brut");
+      } else if (level <= 9){
+        pool.push("z_walk","z_run","z_brut","z_spit","z_shron","r_drone","r_sentry");
+      } else if (level <= 14){
+        pool.push("z_shron","r_drone","r_sentry","r_shield","m_stalk","m_wraith");
+      } else if (level <= 19){
+        pool.push("z_shron","r_shield","r_tank","m_stalk","m_wraith","m_goli","m_howl");
+      } else {
+        pool.push("z_shron","r_tank","m_goli","m_wraith","m_howl","r_sentry","z_spit");
+      }
+
+      const count = Math.min(10 + Math.floor(level*1.4), 38);
+      for (let i=0;i<count;i++){
+        const id = pool[Math.floor(Math.random()*pool.length)];
+        const def = ENEMIES.find(x=>x.id===id);
+        spawnEnemy(def);
+      }
+    }
+
+    // ---------- Raycast Shooting ----------
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(0,0);
+
+    function canConsumeAmmo(){
+      return !(state.infiniteAmmoUntil && performance.now() < state.infiniteAmmoUntil);
+    }
+
+    function shoot(){
+      const now = performance.now();
+      const w = equippedWeapon();
+      ensureAmmoFor(w.id);
+
+      if (state.reloading) return;
+      if (now - state.lastShot < (1000 / w.rps)) return;
+
+      const a = ammo[w.id];
+      if (a.inMag <= 0 && canConsumeAmmo()) { startReload(); return; }
+
+      state.lastShot = now;
+
+      // consume ammo only if not infinite-ammo effect
+      if (canConsumeAmmo()) a.inMag -= 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(enemies.map(e=>e.mesh), false);
+      if (hits.length){
+        const hitMesh = hits[0].object;
+        const e = enemies.find(x=>x.mesh===hitMesh);
+        if (e){
+          let dmg = dmgWithUpgrades(w);
+
+          if (w.type==="SHOTGUN"){
+            const dist = hits[0].distance;
+            dmg = dmg * (dist < 8 ? 1.15 : dist < 14 ? 0.9 : 0.7);
+          }
+          if (e.def.armored) dmg *= 0.85;
+
+          e.hp -= dmg;
+          if (e.hp <= 0) killEnemy(e);
+        }
+      }
+    }
+
+    function startReload(){
+      const w = equippedWeapon();
+      ensureAmmoFor(w.id);
+      const a = ammo[w.id];
+      if (state.reloading) return;
+      if (a.reserve <= 0) return;
+      if (a.inMag === w.mag) return;
+
+      state.reloading = true;
+      state.reloadEnd = performance.now() + reloadWithUpgrades(w)*1000;
+      toast("Reloading...");
+    }
+
+    function finishReload(){
+      const w = equippedWeapon();
+      const a = ammo[w.id];
+      const need = w.mag - a.inMag;
+      const take = Math.min(need, a.reserve);
+      a.inMag += take;
+      a.reserve -= take;
+      state.reloading = false;
+      toast("Reload complete");
+    }
+
+    function grantPower(id){
+      if (!state.wheelPool.includes(id)) state.wheelPool.push(id);
+    }
+
+    function activateBoss10Power(){
+      state.infiniteAmmoUntil = performance.now() + 10_000;
+      setTimeout(()=>{
+        const w = equippedWeapon();
+        const a = ammo[w.id];
+        a.reserve = Math.min(w.maxAmmo - a.inMag, a.reserve + 250);
+        toast("+250 ammo added to equipped weapon");
+      }, 10_000);
+    }
+
+    function activateBoss20Power(){
+      state.invincibleUntil = performance.now() + 5000;
+      toast("INVINCIBLE (5s)!");
+    }
+
+    function killEnemy(e){
+      scene.remove(e.mesh);
+      const idx = enemies.indexOf(e);
+      if (idx>=0) enemies.splice(idx,1);
+
+      state.killsThisLevel += 1;
+
+      let s = 6;
+      if (e.def.shron) s = 14;
+      if (e.isBoss) s = 180;
+      state.scrap += s;
+
+      if (e.isBoss && e.bossName === BOSSES[10].name){
+        toast("Boss defeated! Infinite ammo 10s, then +250 ammo.");
+        grantPower("boss10");
+        activateBoss10Power();
+      }
+      if (e.isBoss && e.bossName === BOSSES[20].name){
+        toast("Boss defeated! Invincibility power gained (activate with Q if equipped).");
+        grantPower("boss20");
+      }
+
+      const bossLevel = (state.level===10 || state.level===20);
+      if (bossLevel){
+        if (!enemies.some(x=>x.isBoss)) endLevel();
+      } else if (state.killsThisLevel >= state.killsNeeded || enemies.length===0){
+        endLevel();
+      }
+    }
+
+    // ---------- Grenade ----------
+    function throwGrenade(){
+      if (!state.grenadeUnlocked) return;
+      if (state.grenades <= 0) { toast("No grenades left"); return; }
+      state.grenades--;
+
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      const blastCenter = player.pos.clone().add(forward.multiplyScalar(6));
+      const radius = 6.5;
+
+      let hitCount = 0;
+      for (const e of [...enemies]){
+        const dist = e.mesh.position.distanceTo(blastCenter);
+        if (dist <= radius){
+          e.hp -= state.grenadeDamage; // 125
+          hitCount++;
+          if (e.hp <= 0) killEnemy(e);
+        }
+      }
+      toast(`Grenade boom! Hit ${hitCount} enemies.`);
+    }
+
+    // ---------- Advancements ----------
+    const advPick = document.getElementById("advPick");
+    const advGrid = document.getElementById("advGrid");
+
+    function endLevel(){
+      if (state.level >= state.maxLevels){
+        toast("YOU BEAT LEVEL 25! (Prototype end)");
+        state.paused = true;
+        showMenu();
+        return;
+      }
+      toast(`Level ${state.level} cleared! Pick an advancement.`);
+      openAdvPick();
+    }
+
+    function applyAdvancement(name){
+      state.advOwned.add(name);
+
+      if (name.includes("+10 HP")) { state.hpMax += 10; state.hp = Math.min(state.hpMax, state.hp + 10); }
+      if (name.includes("+10 armor")) { state.armorMax += 10; state.armor += 10; }
+      if (name.includes("+5% speed")) { player.speedBase *= 1.05; }
+      if (name.includes("Grenade Expert")) { state.grenadeDamage *= 1.10; }
+      if (name.includes("Grenadier")) { state.grenades += 1; }
+
+      advPick.style.display = "none";
+      state.level += 1;
+      spawnLevel(state.level);
+    }
+
+    function openAdvPick(){
+      state.paused = true;
+      advPick.style.display = "flex";
+      advGrid.innerHTML = "";
+
+      const options = ADVANCEMENTS.filter(a=>!state.advOwned.has(a));
+      for (let i=0;i<3;i++){
+        const pick = options.splice(Math.floor(Math.random()*options.length), 1)[0];
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h3>${pick}</h3><p>Click to select</p>`;
+        const b = document.createElement("button");
+        b.textContent = "Select";
+        b.onclick = ()=> { state.paused = false; applyAdvancement(pick); };
+        card.appendChild(b);
+        advGrid.appendChild(card);
+      }
+    }
+
+    // ---------- Enemy AI + Boss Phase ----------
+    function updateEnemies(dt){
+      const now = performance.now();
+      for (const e of enemies){
+        // Boss 20 phase 2: heal
+        if (e.isBoss && e.bossName === BOSSES[20].name){
+          const pct = e.hp / e.hpMax;
+          if (!e.phase2 && pct <= BOSSES[20].phase2At){
+            e.phase2 = true;
+            toast("BOSS PHASE 2: Healing + Builder throws!");
+            const healTotal = e.hpMax * 0.25;
+            e.healUntil = now + 10_000;
+            e.healRate = healTotal / 10.0; // per second
+
+            // Spawn "builders" (drones)
+            for (let i=0;i<6;i++){
+              const def = ENEMIES.find(x=>x.id==="r_drone");
+              spawnEnemy(def);
+            }
+          }
+          if (e.phase2 && e.healUntil && now < e.healUntil){
+            e.hp = Math.min(e.hpMax, e.hp + e.healRate * dt);
+          }
+        }
+
+        // Blink behavior
+        if (e.def.blink && Math.random() < 0.002){
+          e.mesh.position.add(new THREE.Vector3((Math.random()-0.5)*6, 0, (Math.random()-0.5)*6));
+        }
+
+        // Move toward player
+        const toP = player.pos.clone().sub(e.mesh.position);
+        const dist = toP.length();
+        toP.normalize();
+
+        // Howler aura speed buff
+        let speedMult = 1;
+        if (enemies.some(h=>h.def.aura && h.mesh.position.distanceTo(e.mesh.position) < 8)) speedMult = 1.15;
+
+        const spd = (e.spd || 1.6) * speedMult;
+        if (dist > 1.6){
+          e.mesh.position.add(toP.multiplyScalar(spd * dt));
+        } else {
+          if (now - e.lastHit > 650){
+            e.lastHit = now;
+            damagePlayer(e.dmg);
+          }
+        }
+      }
+    }
+
+    function damagePlayer(amount){
+      const now = performance.now();
+      if (now < state.invincibleUntil) return;
+
+      let dmg = amount;
+      if (state.armor > 0){
+        const take = Math.min(state.armor, dmg);
+        state.armor -= take;
+        dmg -= take;
+      }
+      if (dmg > 0) state.hp -= dmg;
+
+      if (state.hp <= 0){
+        state.hp = 0;
+        toast("YOU DIED. Press ESC and restart.");
+        state.paused = true;
+        showMenu();
+      }
+    }
+
+    // ---------- Camera ----------
+    function updateCamera(){
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), player.yaw);
+      const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), player.pitch);
+      const q = yawQ.multiply(pitchQ);
+
+      let offset;
+      if (state.cameraMode===0) offset = new THREE.Vector3(0, 0, 0);
+      else if (state.cameraMode===1) offset = new THREE.Vector3(0.8, 0.2, 2.5);
+      else offset = new THREE.Vector3(0, 0.5, 5.0);
+
+      const off = offset.clone().applyAxisAngle(new THREE.Vector3(0,1,0), player.yaw);
+
+      camera.position.copy(player.pos.clone().add(off));
+      camera.quaternion.copy(q);
+
+      playerMesh.position.copy(player.pos.clone().add(new THREE.Vector3(0, -1.0, 0)));
+      playerMesh.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), player.yaw);
+    }
+
+    // ---------- Movement ----------
+    const keys = new Set();
+
+    addEventListener("keydown", (e)=>{
+      if (e.code==="Escape"){
+        if (document.getElementById("menu").style.display==="none") showMenu();
+        else hideMenu();
+        return;
+      }
+      keys.add(e.code);
+
+      if (e.code==="KeyR") startReload();
+      if (e.code==="KeyY") state.equipped = (state.equipped==="primary" ? "secondary" : "primary");
+      if (e.code==="AltLeft" || e.code==="AltRight") state.cameraMode = (state.cameraMode + 1) % 3;
+      if (e.code==="KeyG") throwGrenade();
+
+      // Activate invincibility if you equipped boss20 power (press Q)
+      if (e.code==="KeyQ"){
+        if (state.powerSlots.includes("boss20")) activateBoss20Power();
+      }
+    });
+
+    addEventListener("keyup", (e)=> keys.delete(e.code));
+
+    function updatePlayer(dt){
+      const sprint = keys.has("Tab") ? 1.35 : 1.0;
+      const crouch = (keys.has("ShiftLeft")||keys.has("ShiftRight")) ? 0.55 : 1.0;
+      const speed = player.speedBase * sprint * crouch;
+
+      const forward = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw)).normalize();
+
+      // ✅ FIXED RIGHT VECTOR (A/D no longer swapped)
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
+
+      let move = new THREE.Vector3();
+
+      const w = keys.has("KeyW") || keys.has("ArrowUp");
+      const s = keys.has("KeyS") || keys.has("ArrowDown");
+      const a = keys.has("KeyA") || keys.has("ArrowLeft");
+      const d = keys.has("KeyD") || keys.has("ArrowRight");
+
+      if (w) move.add(forward);
+      if (s) move.sub(forward);
+      if (a) move.sub(right);
+      if (d) move.add(right);
+
+      if (move.lengthSq()>0) move.normalize().multiplyScalar(speed);
+
+      player.vel.y -= 18 * dt;
+
+      if (keys.has("Space") && player.onGround){
+        player.vel.y = 7.2;
+        player.onGround = false;
+      }
+
+      player.pos.add(move.multiplyScalar(dt));
+      player.pos.add(player.vel.clone().multiplyScalar(dt));
+
+      if (player.pos.y <= 1.7){
+        player.pos.y = 1.7;
+        player.vel.y = 0;
+        player.onGround = true;
+      }
+
+      player.pos.x = Math.max(-90, Math.min(90, player.pos.x));
+      player.pos.z = Math.max(-90, Math.min(90, player.pos.z));
+    }
+
+    // ---------- Mouse Look (PointerLock + Drag fallback) ----------
+    let mouseDown = false;
+    let lastMouseX = 0, lastMouseY = 0;
+
+    renderer.domElement.addEventListener("click", () => {
+      if (document.getElementById("menu").style.display !== "none") return;
+      renderer.domElement.requestPointerLock?.();
+    });
+
+    addEventListener("mousedown", (e) => {
+      if (document.getElementById("menu").style.display !== "none") return;
+
+      mouseDown = true;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+
+      if (e.button === 0) shoot();
+    });
+
+    addEventListener("mouseup", () => { mouseDown = false; });
+
+    addEventListener("mousemove", (e) => {
+      const sens = 0.0022;
+
+      // Pointer lock
+      if (document.pointerLockElement === renderer.domElement) {
+        player.yaw   -= e.movementX * sens;
+        player.pitch -= e.movementY * sens;
+        player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+        return;
+      }
+
+      // Drag fallback
+      if (!mouseDown) return;
+
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+
+      player.yaw   -= dx * sens;
+      player.pitch -= dy * sens;
+      player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+    });
+
+    // ---------- UI ----------
+    const ui = {
+      modePill: document.getElementById("modePill"),
+      lvlPill: document.getElementById("lvlPill"),
+      diffPill: document.getElementById("diffPill"),
+      hpPill: document.getElementById("hpPill"),
+      armorPill: document.getElementById("armorPill"),
+      ammoPill: document.getElementById("ammoPill"),
+      scrapPill: document.getElementById("scrapPill"),
+      grenadePill: document.getElementById("grenadePill"),
+      powerSlots: document.getElementById("powerSlots"),
+      cameraPill: document.getElementById("cameraPill"),
+    };
+
+    function updateHUD(){
+      ui.modePill.textContent = `Mode: ${state.mode.toUpperCase()}`;
+      ui.lvlPill.textContent = `Level: ${state.level}/${state.maxLevels} • Kills: ${state.killsThisLevel}/${state.killsNeeded}${(state.level===10||state.level===20)?" (Boss)":""}`;
+      ui.diffPill.textContent = `Difficulty: ${state.mode==="story" ? state.storyDifficulty.toUpperCase() : "—"}`;
+      ui.hpPill.textContent = `HP: ${Math.round(state.hp)}/${state.hpMax}`;
+      ui.armorPill.textContent = `Armor: ${Math.round(state.armor)}/${state.armorMax}`;
+      ui.scrapPill.textContent = `Scrap: ${state.scrap}`;
+
+      const w = equippedWeapon();
+      ensureAmmoFor(w.id);
+      const a = ammo[w.id];
+      ui.ammoPill.textContent = `${state.equipped.toUpperCase()}: ${w.name} • ${a.inMag}/${w.mag} | Reserve ${a.reserve}`;
+
+      ui.grenadePill.textContent = state.grenadeUnlocked ? `Grenade: ${state.grenades}` : "Grenade: Locked";
+      ui.cameraPill.textContent = `Camera: ${state.cameraMode===0?"1st":state.cameraMode===1?"2nd":"3rd"}`;
+
+      const slotNames = state.powerSlots.map(p => p ? (POWERUPS.find(x=>x.id===p)?.name || p) : " ");
+      ui.powerSlots.textContent = `Powers: [${slotNames[0]}] [${slotNames[1]}] [${slotNames[2]}]`;
+    }
+
+    // ---------- Weapon Station ----------
+    const station = document.getElementById("station");
+    const stationGrid = document.getElementById("stationGrid");
+    document.getElementById("openStation").onclick = ()=> openStation();
+    document.getElementById("closeStation").onclick = ()=> (station.style.display="none");
+    function openStation(){
+      if (document.getElementById("menu").style.display!=="none") return;
+      station.style.display = "flex";
+      buildStation();
+    }
+    function costForBuy(w){ return (w.slot==="primary") ? 120 : 75; }
+    function costForUpgradeTier(tier){ return 60 + tier*55; }
+
+    function buildStation(){
+      stationGrid.innerHTML = "";
+      for (const slot of ["primary","secondary"]){
+        const title = document.createElement("div");
+        title.className = "card";
+        title.innerHTML = `<h3>${slot.toUpperCase()} WEAPONS</h3><p>${slot==="primary"?"AR / Shotgun / SMG / Sniper":"Pistols / Mini-SMGs"}</p>`;
+        stationGrid.appendChild(title);
+
+        for (const w of WEAPONS.filter(x=>x.slot===slot)){
+          const owned = state.owned.has(w.id);
+          const up = state.upgrades[w.id];
+
+          const card = document.createElement("div");
+          card.className = "card";
+
+          const dmg = Math.round(dmgWithUpgrades(w));
+          const rld = reloadWithUpgrades(w).toFixed(2);
+
+          card.innerHTML = `
+            <h3>${w.name}</h3>
+            <div>
+              <span class="tag">${w.type}</span>
+              <span class="tag">DMG ${dmg}</span>
+              <span class="tag">RPS ${w.rps}</span>
+              <span class="tag">Reload ${rld}s</span>
+            </div>
+            <p>${owned ? "Owned ✅" : `Cost: ${costForBuy(w)} Scrap`}</p>
+            <div class="grid" style="grid-template-columns:1fr 1fr; gap:8px;">
+              <button class="secondary" data-equip="${w.id}">${slot==="primary"?"Equip Primary":"Equip Secondary"}</button>
+              <button ${owned ? "disabled":""} data-buy="${w.id}">${owned ? "Owned" : "Buy"}</button>
+            </div>
+            <div style="height:8px"></div>
+            <div class="grid" style="grid-template-columns:1fr 1fr; gap:8px;">
+              <button ${(!owned || up.dmgTier>=5) ? "disabled":""} data-updmg="${w.id}">
+                Damage Core (${up.dmgTier}/5) • ${(!owned || up.dmgTier>=5)?"—":costForUpgradeTier(up.dmgTier)} Scrap
+              </button>
+              <button ${(!owned || up.reloadTier>=5) ? "disabled":""} data-uprel="${w.id}">
+                Reload Kit (${up.reloadTier}/5) • ${(!owned || up.reloadTier>=5)?"—":costForUpgradeTier(up.reloadTier)} Scrap
+              </button>
+            </div>
+          `;
+          stationGrid.appendChild(card);
+        }
+      }
+
+      stationGrid.querySelectorAll("button[data-buy]").forEach(btn=>{
+        btn.onclick = ()=>{
+          const id = btn.getAttribute("data-buy");
+          const w = getWeapon(id);
+          if (state.owned.has(id)) return;
+          const c = costForBuy(w);
+          if (state.scrap < c){ toast("Not enough scrap"); return; }
+          state.scrap -= c;
+          state.owned.add(id);
+          toast(`Bought ${w.name}`);
+          buildStation();
+        };
+      });
+
+      stationGrid.querySelectorAll("button[data-equip]").forEach(btn=>{
+        btn.onclick = ()=>{
+          const id = btn.getAttribute("data-equip");
+          const w = getWeapon(id);
+          if (!state.owned.has(id)){ toast("Buy it first"); return; }
+          if (w.slot==="primary") state.primaryId = id;
+          else state.secondaryId = id;
+          toast(`Equipped ${w.name}`);
+          buildStation();
+        };
+      });
+
+      stationGrid.querySelectorAll("button[data-updmg]").forEach(btn=>{
+        btn.onclick = ()=>{
+          const id = btn.getAttribute("data-updmg");
+          const w = getWeapon(id);
+          const up = state.upgrades[id];
+          const c = costForUpgradeTier(up.dmgTier);
+          if (state.scrap < c){ toast("Not enough scrap"); return; }
+          state.scrap -= c;
+          up.dmgTier += 1;
+          toast(`${w.name} damage upgraded`);
+          buildStation();
+        };
+      });
+
+      stationGrid.querySelectorAll("button[data-uprel]").forEach(btn=>{
+        btn.onclick = ()=>{
+          const id = btn.getAttribute("data-uprel");
+          const w = getWeapon(id);
+          const up = state.upgrades[id];
+          const c = costForUpgradeTier(up.reloadTier);
+          if (state.scrap < c){ toast("Not enough scrap"); return; }
+          state.scrap -= c;
+          up.reloadTier += 1;
+          toast(`${w.name} reload upgraded`);
+          buildStation();
+        };
+      });
+    }
+
+    // ---------- Power Wheel ----------
+    const wheel = document.getElementById("powerWheel");
+    const wheelGrid = document.getElementById("wheelGrid");
+    document.getElementById("openWheel").onclick = ()=> openWheel();
+    document.getElementById("closeWheel").onclick = ()=> (wheel.style.display="none");
+
+    function openWheel(){
+      if (!state.powerWheelUnlocked) return;
+      wheel.style.display = "flex";
+      buildWheel();
+    }
+    function buildWheel(){
+      wheelGrid.innerHTML = "";
+      for (let s=0;s<3;s++){
+        const card = document.createElement("div");
+        card.className = "card";
+        const current = state.powerSlots[s];
+        card.innerHTML = `<h3>Slot ${s+1}</h3><p>${current ? (POWERUPS.find(x=>x.id===current)?.name || current) : "Empty"}</p>`;
+        const picker = document.createElement("div");
+        picker.className = "grid";
+        picker.style.gridTemplateColumns = "1fr";
+        for (const pid of state.wheelPool){
+          const p = POWERUPS.find(x=>x.id===pid);
+          const b = document.createElement("button");
+          b.className = "secondary";
+          b.textContent = `${p?.name || pid}`;
+          b.onclick = ()=> { state.powerSlots[s] = pid; toast(`Slot ${s+1} set: ${p?.name||pid}`); buildWheel(); };
+          picker.appendChild(b);
+        }
+        card.appendChild(picker);
+        wheelGrid.appendChild(card);
+      }
+    }
+
+    // ---------- Menu ----------
+    document.getElementById("howTo").onclick = ()=>{
+      const el = document.getElementById("controlsText");
+      el.style.display = (el.style.display==="none") ? "block" : "none";
+    };
+
+    document.getElementById("startArcade").onclick = ()=>{
+      state.mode = "arcade";
+      startRun(false);
+    };
+    document.getElementById("startStory").onclick = ()=>{
+      state.mode = "story";
+      state.storyDifficulty = document.getElementById("storyDiff").value;
+      startRun(true);
+    };
+
+    function showMenu(){
+      document.exitPointerLock?.();
+      document.getElementById("menu").style.display = "flex";
+      state.paused = true;
+    }
+    function hideMenu(){
+      document.getElementById("menu").style.display = "none";
+      state.paused = false;
+    }
+
+    function startRun(isStory){
+      state.level = 1;
+      state.killsThisLevel = 0;
+      state.scrap = 0;
+      state.hpMax = 120; state.hp = 120;
+      state.armorMax = 75; state.armor = 0;
+      state.invincibleUntil = 0;
+      state.infiniteAmmoUntil = 0;
+      state.cameraMode = 0;
+
+      state.grenadeUnlocked = false;
+      state.grenades = 0;
+
+      state.powerWheelUnlocked = false;
+      state.powerSlots = [null,null,null];
+      state.wheelPool = ["med","overclock","shock","armor","magnet"];
+      document.getElementById("openWheel").style.display = "none";
+
+      if (isStory){
+        state.owned = new Set(["ar_m4","pi_m9"]);
+        state.primaryId = "ar_m4";
+        state.secondaryId = "pi_m9";
+        state.equipped = "primary";
+        state.advOwned = new Set();
+        for (const w of WEAPONS) state.upgrades[w.id] = { dmgTier:0, reloadTier:0 };
+        for (const w of WEAPONS){
+          ammo[w.id] = { inMag: w.mag, reserve: Math.max(0, w.maxAmmo - w.mag) };
+        }
+      }
+
+      hideMenu();
+      spawnLevel(state.level);
+      toast(`${isStory?"Story":"Arcade"} started! Click to lock mouse or drag to look.`);
+    }
+
+    // ---------- Loop ----------
+    function updateHUDAndRender(){
+      updateHUD();
+      renderer.render(scene, camera);
+    }
+
+    let last = performance.now();
+    function tick(){
+      requestAnimationFrame(tick);
+      const now = performance.now();
+      const dt = Math.min(0.033, (now-last)/1000);
+      last = now;
+
+      if (!state.paused){
+        updatePlayer(dt);
+        updateEnemies(dt);
+
+        if (state.reloading && now >= state.reloadEnd) finishReload();
+      }
+
+      updateCamera();
+      updateHUDAndRender();
+    }
+    tick();
+
+    addEventListener("resize", ()=>{
+      renderer.setSize(innerWidth, innerHeight);
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // start on menu
+    showMenu();
+  </script>
+</body>
+</html>
